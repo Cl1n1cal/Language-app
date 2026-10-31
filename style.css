@@ -151,18 +151,21 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 }
 
 /* word highlighting while the computer speaks */
-.w { border-radius: 4px; padding: 0 1px; transition: background-color .08s; }
+.w { border-radius: 4px; padding: 0 1px; transition: background-color .08s; cursor: pointer; }
+.w:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .w.speaking { background: var(--hl); color: var(--hl-text); }
 
 /* push-and-hold microphone */
-.mic { touch-action: none; user-select: none; -webkit-user-select: none; }
+.mic { touch-action: none; user-select: none; -webkit-user-select: none; white-space: nowrap; }
 .mic.recording { background: var(--bad); border-color: var(--bad); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--bad) 30%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .mic.recording { animation: none; } }
-.live { min-height: 1.4em; color: var(--muted); font-style: italic; font-size: .95rem; margin-top: 6px; }
+/* Fixed height: the sticky bar must not change size while you speak, or the page jumps. */
+.live { height: 2.8em; overflow: hidden; color: var(--muted); font-style: italic; font-size: .95rem; margin-top: 6px; }
 
 /* conversation */
 .spread { justify-content: space-between; }
+.chat .msg { scroll-margin-bottom: 9rem; }   /* keep new messages clear of the sticky answer bar */
 .msg .tools { margin-top: 4px; }
 .msg .tools button { padding: 0 8px; font-size: .85rem; }
 .corrections { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px dashed var(--border); font-size: .9rem; }

@@ -70,7 +70,10 @@ let speaking = null; // { u, el, timers, gotBoundary }
 function stopSpeaking() {
   if (speaking) {
     speaking.timers.forEach(clearTimeout);
-    if (speaking.el) speaking.el.querySelectorAll('.speaking').forEach(w => w.classList.remove('speaking'));
+    if (speaking.el) {
+      speaking.el.classList.remove('speaking');
+      speaking.el.querySelectorAll('.speaking').forEach(w => w.classList.remove('speaking'));
+    }
     speaking = null;
   }
   if (synth) synth.cancel();
@@ -79,7 +82,8 @@ function stopSpeaking() {
 // Speaks `text`. If `el` holds the text as word spans (see wordsHTML), each
 // word is highlighted as it is spoken. Voices that report word boundaries
 // drive the highlight exactly; for the others it is estimated from timing.
-function speak(text, { slow = false, el = null } = {}) {
+// With `word` (a single word span), only that word is spoken and highlighted.
+function speak(text, { slow = false, el = null, word = null } = {}) {
   if (!synth) return;
   stopSpeaking();
   // "…" is a single character, so replacing it keeps word offsets intact.
@@ -90,8 +94,16 @@ function speak(text, { slow = false, el = null } = {}) {
   const rate = parseFloat($('#rate').value);
   u.rate = slow ? Math.max(0.4, rate * 0.65) : rate;
 
-  const me = { u, el, timers: [], gotBoundary: false };
+  const me = { u, el: word || el, timers: [], gotBoundary: false };
   speaking = me;
+  u.onend = u.onerror = () => { if (speaking === me) stopSpeaking(); };
+
+  if (word) {
+    u.onstart = () => { if (speaking === me) word.classList.add('speaking'); };
+    synth.speak(u);
+    return;
+  }
+
   const words = el ? [...el.querySelectorAll('.w')] : [];
   const mark = w => words.forEach(x => x.classList.toggle('speaking', x === w));
 
@@ -117,10 +129,17 @@ function speak(text, { slow = false, el = null } = {}) {
       || words.find(x => +x.dataset.s >= i);
     if (w) mark(w);
   };
-  u.onend = u.onerror = () => { if (speaking === me) stopSpeaking(); };
 
   synth.speak(u);
 }
+
+// Click any word to hear it on its own.
+document.addEventListener('click', e => {
+  const w = e.target.closest('.w');
+  if (!w) return;
+  const text = w.textContent.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+  if (text) speak(text, { word: w });
+});
 
 // ---------- speech recognition (push and hold) ----------
 
@@ -230,6 +249,11 @@ function micError(err) {
 }
 
 const NOTHING_HEARD = 'I didn\'t hear anything. Hold the button while you speak.';
+
+// The live line has a fixed height; for long speech show the most recent words.
+function showLive(el, text) {
+  el.textContent = text.length > 120 ? '…' + text.slice(-120) : text;
+}
 
 // ---------- matching ----------
 
@@ -460,12 +484,12 @@ function resetDialogue() {
   $('#startDialogue').textContent = 'Start';
 }
 
-function addMsg(container, who, html) {
+function addMsg(container, who, html, scroll = true) {
   const d = document.createElement('div');
   d.className = 'msg ' + who;
   d.innerHTML = html;
   container.appendChild(d);
-  d.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  if (scroll) d.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   return d;
 }
 
@@ -507,7 +531,7 @@ $('#startDialogue').onclick = () => {
 };
 
 holdToTalk($('#speakAnswer'), {
-  onInterim: t => { $('#dlgLive').textContent = t; },
+  onInterim: t => showLive($('#dlgLive'), t),
   onResult: heard => {
     $('#dlgLive').textContent = '';
     if (heard.length) submitAnswer(heard);
@@ -576,33 +600,43 @@ function correctionsHTML(list) {
   ).join('')}</ul>`;
 }
 
-function renderConvo() {
-  const box = $('#convo');
-  box.innerHTML = '';
+function updateConvoControls() {
   $('#convoHint').textContent = `Start by saying hello, e.g. “${STARTERS[state.lang]}”`;
   $('#convoSetup').innerHTML = convo.available ? '' :
     '<p class="warn">Conversation needs a Claude API key. Copy <code>.env.example</code> to <code>.env</code>, ' +
-    'put your key in it, and restart <code>./serve.sh</code>. Phrases and dialogues work without it.</p>';
+    'put your key in it, and restart the server. Phrases and dialogues work without it.</p>';
   for (const b of [$('#convoMic'), $('#convoInput'), $('#convoForm button')]) {
     b.disabled = !convo.available || convo.busy || (b === $('#convoMic') && !Recognition);
   }
+}
 
-  for (const item of convo.shown[state.lang]) {
-    if (item.who === 'me') {
-      addMsg(box, 'me', `<div>${esc(item.text)}</div>${correctionsHTML(item.corrections)}`);
-    } else if (item.who === 'them') {
-      const msg = addMsg(box, 'them', `
-        <div class="say">${wordsHTML(item.text)}</div>
-        <div class="en">${esc(item.translation)}</div>
-        <div class="tools"><button title="Say it again">🔊</button></div>`);
-      const say = msg.querySelector('.say');
-      msg.querySelector('.tools button').onclick = () => speak(item.text, { el: say });
-      item.el = say;
-    } else {
-      addMsg(box, 'sys', esc(item.text));
-    }
+// Appends one conversation item to the chat. Messages are only ever added
+// (never re-rendered) while chatting, so the scroll position stays put.
+function showConvoItem(item, scroll) {
+  const box = $('#convo');
+  if (item.who === 'me') {
+    item.node = addMsg(box, 'me', `<div>${esc(item.text)}</div>${correctionsHTML(item.corrections)}`, scroll);
+  } else if (item.who === 'them') {
+    item.node = addMsg(box, 'them', `
+      <div class="say">${wordsHTML(item.text)}</div>
+      <div class="en">${esc(item.translation)}</div>
+      <div class="tools"><button title="Say it again">🔊</button></div>`, scroll);
+    item.el = item.node.querySelector('.say');
+    item.node.querySelector('.tools button').onclick = () => speak(item.text, { el: item.el });
+  } else {
+    item.node = addMsg(box, 'sys', esc(item.text), scroll);
   }
-  if (convo.busy) addMsg(box, 'them', '<span class="typing muted"></span>');
+}
+
+// Full rebuild: only on load, language switch and "New conversation".
+function renderConvo() {
+  updateConvoControls();
+  const box = $('#convo');
+  box.innerHTML = '';
+  for (const item of convo.shown[state.lang]) showConvoItem(item, false);
+  if (convo.busy && convo.busyLang === state.lang) {
+    convo.typing = addMsg(box, 'them', '<span class="typing muted"></span>', false);
+  }
 }
 
 async function sendConvo(text, spoken) {
@@ -613,8 +647,11 @@ async function sendConvo(text, spoken) {
   const mine = { who: 'me', text };
   history.push({ role: 'user', content: (spoken ? '🎤 ' : '') + text });
   shown.push(mine);
+  showConvoItem(mine, true);
   convo.busy = true;
-  renderConvo();
+  convo.busyLang = lang;
+  updateConvoControls();
+  convo.typing = addMsg($('#convo'), 'them', '<span class="typing muted"></span>');
 
   let data;
   try {
@@ -627,9 +664,18 @@ async function sendConvo(text, spoken) {
     if (!r.ok || data.error) throw new Error(data.error || 'Request failed.');
   } catch (err) {
     history.pop();   // drop the unanswered message so the next try is clean
+    data = null;
     shown.push({ who: 'sys', text: (err.message || 'Could not reach the server.') + ' Your message was not sent; try again.' });
-    convo.busy = false;
-    renderConvo();
+  }
+
+  convo.busy = false;
+  if (convo.typing) convo.typing.remove();
+  convo.typing = null;
+  updateConvoControls();
+  const visible = state.lang === lang;   // the user may have switched language meanwhile
+
+  if (!data) {
+    if (visible) showConvoItem(shown[shown.length - 1], true);
     return;
   }
 
@@ -637,15 +683,15 @@ async function sendConvo(text, spoken) {
   mine.corrections = data.corrections;
   const reply = { who: 'them', text: data.reply, translation: data.translation };
   shown.push(reply);
-  convo.busy = false;
-  if (state.lang !== lang) return;   // user switched language meanwhile
-  renderConvo();
+  if (!visible) return;
+  mine.node.insertAdjacentHTML('beforeend', correctionsHTML(mine.corrections));
+  showConvoItem(reply, true);
   speak(reply.text, { el: reply.el });
   if (state.input === 'writing') $('#convoInput').focus();
 }
 
 holdToTalk($('#convoMic'), {
-  onInterim: t => { $('#convoLive').textContent = t; },
+  onInterim: t => showLive($('#convoLive'), t),
   onResult: heard => {
     $('#convoLive').textContent = '';
     if (heard.length) sendConvo(heard[0], true);
