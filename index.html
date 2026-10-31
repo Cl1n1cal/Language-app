@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Language Practice</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗣️</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Language Practice</h1>
+    <p class="sub">Listen, repeat and talk: French · German · Finnish</p>
+  </header>
+
+  <nav id="langTabs" class="tabs" aria-label="Language"></nav>
+
+  <section class="settings">
+    <div class="seg" role="group" aria-label="Answer by">
+      <button data-input="speech">🎤 Speaking</button>
+      <button data-input="writing">⌨️ Writing</button>
+    </div>
+    <label>Voice <select id="voiceSelect"></select></label>
+    <label>Speed <input id="rate" type="range" min="0.5" max="1.2" step="0.05"> <span id="rateVal"></span></label>
+    <label class="check"><input id="showEn" type="checkbox"> Show translations</label>
+  </section>
+
+  <div id="warnings"></div>
+
+  <nav id="modeTabs" class="tabs small" aria-label="Mode">
+    <button data-mode="phrases">Phrases</button>
+    <button data-mode="dialogues">Dialogues</button>
+    <button data-mode="conversation">Conversation</button>
+  </nav>
+
+  <main>
+    <section id="phrasesView">
+      <select id="categorySelect" aria-label="Category"></select>
+      <ul id="phraseList" class="cards"></ul>
+    </section>
+
+    <section id="dialoguesView" hidden>
+      <div class="row">
+        <select id="dialogueSelect" aria-label="Dialogue"></select>
+        <button id="startDialogue" class="primary">Start</button>
+      </div>
+      <div id="chat" class="chat" aria-live="polite"></div>
+      <div id="answerBar" class="answer" hidden>
+        <div class="live" id="dlgLive" aria-live="polite"></div>
+        <div class="row">
+          <button id="speakAnswer" class="primary mic speak-only">🎤 Hold to answer</button>
+          <button id="repeatLine">🔊 Repeat</button>
+          <button id="hintBtn">💡 Hint</button>
+          <button id="skipBtn">Skip ›</button>
+        </div>
+        <form id="typeForm" class="row write-only">
+          <input id="typeInput" placeholder="Type your answer" autocomplete="off" spellcheck="false">
+          <button class="primary">Send</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="conversationView" hidden>
+      <div class="row spread">
+        <span id="convoHint" class="muted"></span>
+        <button id="newConvo">New conversation</button>
+      </div>
+      <div id="convoSetup"></div>
+      <div id="convo" class="chat" aria-live="polite"></div>
+      <div class="answer" id="convoBar">
+        <div class="live" id="convoLive" aria-live="polite"></div>
+        <div class="row speak-only">
+          <button id="convoMic" class="primary mic">🎤 Hold to talk</button>
+        </div>
+        <form id="convoForm" class="row write-only">
+          <input id="convoInput" placeholder="Write a message" autocomplete="off" spellcheck="false">
+          <button class="primary">Send</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer>Speech runs in your browser (Web Speech API). Works best in Edge or Chrome.</footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

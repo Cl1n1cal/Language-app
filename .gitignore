@@ -1,0 +1,8 @@
+# Secrets: the API key lives here, never commit it
+.env
+.env.*
+!.env.example
+
+# Local Python environment
+.venv/
+__pycache__/
